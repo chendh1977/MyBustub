@@ -37,7 +37,7 @@ class TrieNode {
    *
    * @param key_char Key character of this trie node
    */
-  explicit TrieNode(char key_char) : key_char_(key_char), is_end_(false) { this->children_.clear(); }
+  explicit TrieNode(char key_char) : key_char_(key_char) { this->children_.clear(); }
 
   /**
    * TODO(P0): Add implementation
@@ -115,14 +115,11 @@ class TrieNode {
    * @return Pointer to unique_ptr of the inserted child node. If insertion fails, return nullptr.
    */
   std::unique_ptr<TrieNode> *InsertChildNode(char key_char, std::unique_ptr<TrieNode> &&child) {
-    if (key_char != child->GetKeyChar())
+    if (key_char != child->GetKeyChar() || children_.find(key_char) != children_.end()) {
       return nullptr;
-    else if (children_.find(key_char) != children_.end()) {
-      return nullptr;
-    } else {
-      children_[key_char] = std::forward<std::unique_ptr<TrieNode>>(child);
-      return &children_[key_char];
     }
+    children_[key_char] = std::forward<std::unique_ptr<TrieNode>>(child);
+    return &children_[key_char];
   }
 
   /**
@@ -138,9 +135,8 @@ class TrieNode {
   std::unique_ptr<TrieNode> *GetChildNode(char key_char) {
     if (children_.find(key_char) != children_.end()) {
       return &children_[key_char];
-    } else {
-      return nullptr;
     }
+    return nullptr;
   }
 
   /**
@@ -292,30 +288,25 @@ class Trie {
     latch_.WLock();
     std::unique_ptr<TrieNode> *tmp = &root_;
     unsigned int i = 0;
-    for (auto c : key) {
+    for (char c : key) {
       i++;
       if (i == key.size()) {
         if ((*tmp)->GetChildNode(c)) {
           std::unique_ptr<TrieNode> *tmpchild = (*tmp)->GetChildNode(c);
-          if ((*tmpchild)->IsEndNode() == true) {
+          if ((*tmpchild)->IsEndNode()) {
             latch_.WUnlock();
             return false;
-          } else {
-            (*tmp)->RemoveChildNode(c);
-            std::unique_ptr<TrieNode> newchild(new TrieNodeWithValue<T>(std::move((**tmpchild)), value));
-            (*tmp)->InsertChildNode(c, std::move(newchild));
-            latch_.WUnlock();
-            return true;
           }
-        } else {
-          (*tmp)->InsertChildNode(c, std::unique_ptr<TrieNode>(new TrieNodeWithValue<T>(c, value)));
+          (*tmpchild) = std::make_unique<TrieNodeWithValue<T>>(std::move(*(*tmpchild)), value);
           latch_.WUnlock();
           return true;
         }
+        (*tmp)->InsertChildNode(c, std::unique_ptr<TrieNode>(new TrieNodeWithValue<T>(c, value)));
+        latch_.WUnlock();
+        return true;
       }
       if ((*tmp)->GetChildNode(c) == nullptr) {
-        (*tmp)->InsertChildNode(c, std::unique_ptr<TrieNode>(new TrieNode(c)));
-        tmp = (*tmp)->GetChildNode(c);
+        tmp = (*tmp)->InsertChildNode(c, std::make_unique<TrieNode>(c));
       } else {
         tmp = (*tmp)->GetChildNode(c);
       }
@@ -366,7 +357,7 @@ class Trie {
     (*(*(st.rbegin())))->RemoveChildNode((*tmp)->GetKeyChar());
     tmp = *(st.rbegin());
     st.pop_back();
-    while (((*tmp) != root_) && ((*tmp)->HasChildren()) && !((*tmp)->IsEndNode())) {
+    while (((*tmp) != root_) && !((*tmp)->HasChildren()) && !((*tmp)->IsEndNode())) {
       (*(*(st.rbegin())))->RemoveChildNode((*tmp)->GetKeyChar());
       tmp = *(st.rbegin());
       st.pop_back();
