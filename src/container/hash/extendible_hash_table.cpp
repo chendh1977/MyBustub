@@ -22,10 +22,9 @@
 namespace bustub {
 
 template <typename K, typename V>
-ExtendibleHashTable<K, V>::ExtendibleHashTable(size_t bucket_size)
-    : global_depth_(0), bucket_size_(bucket_size), num_buckets_(1) {
-      dir_.push_back(std::shared_ptr<Bucket>(new Bucket(bucket_size_)));
-    }
+ExtendibleHashTable<K, V>::ExtendibleHashTable(size_t bucket_size) : bucket_size_(bucket_size) {
+  dir_.push_back(std::shared_ptr<Bucket>(new Bucket(bucket_size_)));
+}
 
 template <typename K, typename V>
 auto ExtendibleHashTable<K, V>::IndexOf(const K &key) -> size_t {
@@ -81,42 +80,43 @@ auto ExtendibleHashTable<K, V>::Remove(const K &key) -> bool {
 }
 
 template <typename K, typename V>
-auto ExtendibleHashTable<K, V>::RedistributeBucket(std::shared_ptr<Bucket> bucket) -> void {
-  std::shared_ptr<Bucket> bucket0(new Bucket(bucket_size_, bucket->GetDepth()+1));
-  std::shared_ptr<Bucket> bucket1(new Bucket(bucket_size_, bucket->GetDepth()+1));
-  auto tmp = bucket;
+auto ExtendibleHashTable<K, V>::RedistributeBucket(std::shared_ptr<Bucket> bucket, size_t dir_index) -> void {
+  std::shared_ptr<Bucket> bucket0(new Bucket(bucket_size_, bucket->GetDepth() + 1));
+  std::shared_ptr<Bucket> bucket1(new Bucket(bucket_size_, bucket->GetDepth() + 1));
   auto list = bucket->GetItems();
   int mask = 1 << bucket->GetDepth();
-  dir_[std::hash<K>()((*(list.begin())).first) & (mask-1)] = bucket0;
-  dir_[mask+(std::hash<K>()((*(list.begin())).first) & (mask-1))] = bucket1;
-  for(auto item : list){
+  num_buckets_++;
+  for (const std::pair<K, V> &item : list) {
     auto key = item.first;
     auto value = item.second;
-    if(std::hash<K>()(key) & mask) {
+    if (std::hash<K>()(key) & mask) {
       bucket1->Insert(key, value);
     } else {
       bucket0->Insert(key, value);
     }
   }
-
+  for (size_t i = dir_index & (mask - 1); i < dir_.size(); i += mask) {
+    if ((i & mask) != 0) {
+      dir_[i] = bucket1;
+    } else {
+      dir_[i] = bucket0;
+    }
+  }
 }
-
 
 template <typename K, typename V>
 void ExtendibleHashTable<K, V>::Insert(const K &key, const V &value) {
   std::scoped_lock<std::mutex> lock(latch_);
-  auto dir_index = IndexOf(key);
-  if(!((dir_[dir_index])->Insert(key, value))) {
-    if((dir_[dir_index])->GetDepth() == GetGlobalDepthInternal()) {
+  size_t dir_index;
+  while (!((dir_[IndexOf(key)])->Insert(key, value))) {
+    dir_index = IndexOf(key);
+    if ((dir_[dir_index])->GetDepth() == GetGlobalDepthInternal()) {
       int len = dir_.size();
       dir_.reserve(len * 2);
       std::copy_n(dir_.begin(), len, std::back_inserter(dir_));
       global_depth_++;
     }
-    RedistributeBucket(dir_[dir_index]);
-    latch_.unlock();
-    Insert(key, value);
-    latch_.lock();
+    RedistributeBucket(dir_[dir_index], dir_index);
   }
 }
 
@@ -128,8 +128,8 @@ ExtendibleHashTable<K, V>::Bucket::Bucket(size_t array_size, int depth) : size_(
 
 template <typename K, typename V>
 auto ExtendibleHashTable<K, V>::Bucket::Find(const K &key, V &value) -> bool {
-  for(auto item : list_) {
-    if(item.first == key) {
+  for (const std::pair<K, V> &item : list_) {
+    if (item.first == key) {
       value = item.second;
       return true;
     }
@@ -140,12 +140,12 @@ auto ExtendibleHashTable<K, V>::Bucket::Find(const K &key, V &value) -> bool {
 template <typename K, typename V>
 auto ExtendibleHashTable<K, V>::Bucket::Remove(const K &key) -> bool {
   auto it = list_.begin();
-  for(;it!=list_.end();it++) {
-    if((*it).first == key) {
+  for (; it != list_.end(); it++) {
+    if ((*it).first == key) {
       break;
     }
   }
-  if(it == list_.end()) {
+  if (it == list_.end()) {
     return false;
   }
   list_.erase(it);
@@ -154,16 +154,16 @@ auto ExtendibleHashTable<K, V>::Bucket::Remove(const K &key) -> bool {
 
 template <typename K, typename V>
 auto ExtendibleHashTable<K, V>::Bucket::Insert(const K &key, const V &value) -> bool {
-  if(IsFull()) {
+  if (IsFull()) {
     return false;
   }
   auto it = list_.begin();
-  for(;it!=list_.end();it++) {
-    if((*it).first == key) {
+  for (; it != list_.end(); it++) {
+    if ((*it).first == key) {
       break;
     }
   }
-  if(it == list_.end()){
+  if (it == list_.end()) {
     list_.push_front(std::pair<K, V>(key, value));
   } else {
     (*it).second = value;
