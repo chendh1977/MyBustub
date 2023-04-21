@@ -123,7 +123,9 @@ auto BufferPoolManagerInstance::UnpinPgImp(page_id_t page_id, bool is_dirty) -> 
   if (pages_[frame_id].GetPinCount() == 0) {
     replacer_->SetEvictable(frame_id, true);
   }
-  pages_[frame_id].is_dirty_ = is_dirty;
+  if(pages_[frame_id].is_dirty_ == false) {
+    pages_[frame_id].is_dirty_ = is_dirty;
+  }
   return true;
 }
 

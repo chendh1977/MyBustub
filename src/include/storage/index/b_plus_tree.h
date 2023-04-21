@@ -22,6 +22,7 @@
 namespace bustub {
 
 #define BPLUSTREE_TYPE BPlusTree<KeyType, ValueType, KeyComparator>
+#define InternalMappingType std::pair<KeyType, page_id_t>
 
 /**
  * Main class providing the API for the Interactive B+ Tree.
@@ -57,6 +58,21 @@ class BPlusTree {
   // return the page id of the root node
   auto GetRootPageId() -> page_id_t;
 
+private:
+
+  auto TreeTraversal(const KeyType& key, BPlusTreePage** bPage) ->bool;
+  //insert helper
+  void SimpleInsert(const MappingType* pair, BPlusTreePage* bPage);
+  void SimpleSplit(const MappingType* pair, BPlusTreePage* bPage, BPlusTreePage* parent_page);
+  void MultipleSplit(const MappingType* pair, BPlusTreePage* bpage, BPlusTreePage* parent_page);
+
+  //remove helper
+  void SimpleDelete(const MappingType* pair, BPlusTreePage* bPage);
+  void SimpleCoalesces(const MappingType* pair, BPlusTreePage* bPage, BPlusTreePage* parent_page);
+  void MultipleCoalesces(const MappingType* pair, BPlusTreePage* bpage, BPlusTreePage* parent_page);
+
+public:
+
   // index iterator
   auto Begin() -> INDEXITERATOR_TYPE;
   auto Begin(const KeyType &key) -> INDEXITERATOR_TYPE;
@@ -89,6 +105,7 @@ class BPlusTree {
   KeyComparator comparator_;
   int leaf_max_size_;
   int internal_max_size_;
+  int cur_size_{0};
 };
 
 }  // namespace bustub

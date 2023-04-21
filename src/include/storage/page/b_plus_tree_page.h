@@ -41,9 +41,11 @@ enum class IndexPageType { INVALID_INDEX_PAGE = 0, LEAF_PAGE, INTERNAL_PAGE };
  * ----------------------------------------------------------------------------
  */
 class BPlusTreePage {
+
  public:
   auto IsLeafPage() const -> bool;
   auto IsRootPage() const -> bool;
+  auto IsInternalPage() const -> bool;
   void SetPageType(IndexPageType page_type);
 
   auto GetSize() const -> int;
@@ -62,14 +64,16 @@ class BPlusTreePage {
 
   void SetLSN(lsn_t lsn = INVALID_LSN);
 
+  virtual ~BPlusTreePage() = default;
+
  private:
   // member variable, attributes that both internal and leaf page share
-  IndexPageType page_type_ __attribute__((__unused__));
-  lsn_t lsn_ __attribute__((__unused__));
-  int size_ __attribute__((__unused__));
-  int max_size_ __attribute__((__unused__));
-  page_id_t parent_page_id_ __attribute__((__unused__));
-  page_id_t page_id_ __attribute__((__unused__));
+  IndexPageType page_type_ ;
+  lsn_t lsn_ ;
+  int size_ ;
+  int max_size_ ;
+  page_id_t parent_page_id_ ;
+  page_id_t page_id_ ;
 };
 
 }  // namespace bustub
